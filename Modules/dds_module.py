@@ -4,7 +4,7 @@ import subprocess
 def run_texconv(input_path, output_dir, format_type, output_name, texconv_path):
     """Run texconv.exe to convert image to DDS"""
     if not os.path.isabs(texconv_path) and not os.path.dirname(texconv_path):
-        texconv_path = os.path.join(os.path.dirname(__file__), texconv_path)
+        texconv_path = os.path.abspath(texconv_path)
     
     if not os.path.exists(texconv_path):
         print(f"      Warning: texconv not found at {texconv_path}")
@@ -95,4 +95,5 @@ def get_dds_compression_data(dds_path):
             return data
     except Exception as e:
         print(f"Error reading DDS: {e}")
+
         return None
