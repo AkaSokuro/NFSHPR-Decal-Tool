@@ -1,6 +1,9 @@
 # NFSHPR Decal Tool
 [![GitHub release](https://img.shields.io/github/v/release/AkaSokuro/NFSHPR-Decal-Tool)](https://github.com/AkaSokuro/NFSHPR-Decal-Tool/releases)
 
+[![GitHub download](https://img.shields.io/github/downloads/AkaSokuro/NFSHPR-Decal-Tool/latest/nfshpr-decal-tool-scripts.zip?color=green)](https://github.com/AkaSokuro/NFSHPR-Decal-Tool/releases/latest/download/nfshpr-decal-tool-scripts.zip)
+[![Texturepack download](https://img.shields.io/github/downloads/AkaSokuro/NFSHPR-Decal-Tool/latest/nfshpr-decal-textures.zip?color=green)](https://github.com/AkaSokuro/NFSHPR-Decal-Tool/releases/latest/download/nfshpr-decal-textures.zip)
+
 This script is for easing the process of modifying Need For Speed: Hot Pursuit Remastered's decals so custom wraps can be made faster.
 
 ## Disclaimer
