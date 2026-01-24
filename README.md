@@ -28,6 +28,8 @@ The custom decals can be seen by other players so abide to the game's TOS.
 - Unzip the `nfshpr-decal-tool-scripts.zip` into the installed folder and replace existing files.
 
 ## Features
+### Supported Image Formats
+> `PNG`, `JPG`, `JPEG`, `TGA`
 ### Automation
 - `Auto Convert Decal` - Automatically convert an image into a decal without having to do it manually step by step
 ### Image Generation
