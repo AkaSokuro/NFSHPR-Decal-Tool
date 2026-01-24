@@ -8,7 +8,8 @@ from Modules.menu import (
     change_decal_dimensions_menu,
     convert_images_to_dat_menu,
     decal_locator_menu,
-    setup_directories_menu
+    setup_directories_menu,
+    auto_convert_decal_menu
 )
 
 def main():
@@ -32,19 +33,22 @@ def main():
     
     menu_options = [
         "",
+        "[ AUTOMATION ]",
+        "[1] Auto Convert Decal",
+        "",
         "[ IMAGE GENERATION ]",
-        "[1] Generate Alpha Mask",
-        "[2] Regenerate Alpha Mask (Replace Existing)",
-        "[3] Generate Icon (128x128)",
+        "[2] Generate Alpha Mask",
+        "[3] Regenerate Alpha Mask (Replace Existing)",
+        "[4] Generate Icon (128x128)",
         "",
         "[ METADATA & CONVERSION ]",
-        "[4] Change Decal Dimensions (Metadata)",
-        "[5] Convert Images to DAT Files",
+        "[5] Change Decal Dimensions (Metadata)",
+        "[6] Convert Images to DAT Files",
         "",
         "[ TOOLS & UTILITIES ]",
-        "[6] Decal Locator (Search & Find)",
-        "[7] Rebuild Decal Index",
-        "[8] Directory Setup",
+        "[7] Decal Locator (Search & Find)",
+        "[8] Rebuild Decal Index",
+        "[9] Directory Setup",
         "",
         "[0] Exit",
         ""
@@ -55,27 +59,28 @@ def main():
         choice = input("\nChoice: ").strip()
         
         if choice == '1':
-            alpha_mask_menu(config)
+            auto_convert_decal_menu(locator, config)
         elif choice == '2':
-            regenerate_alpha_mask_menu(config)
+            alpha_mask_menu(config)
         elif choice == '3':
-            icon_generator_menu(config)
+            regenerate_alpha_mask_menu(config)
         elif choice == '4':
-            change_decal_dimensions_menu(locator)
+            icon_generator_menu(config)
         elif choice == '5':
-            convert_images_to_dat_menu(locator, config)
+            change_decal_dimensions_menu(locator)
         elif choice == '6':
-            decal_locator_menu(locator)
+            convert_images_to_dat_menu(locator, config)
         elif choice == '7':
-            locator.build_index()
+            decal_locator_menu(locator)
         elif choice == '8':
+            locator.build_index()
+        elif choice == '9':
             setup_directories_menu(config)
-            # Reload locator with new paths
             locator = DecalLocator(config['images_dir'], config['raw_dir'])
         elif choice == '0':
             break
         else:
-            print("\nInvalid choice. Please enter 0-8.\n")
+            print("\nInvalid choice. Please enter 0-9.\n")
 
 if __name__ == "__main__":
     main()

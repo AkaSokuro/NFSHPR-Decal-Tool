@@ -1,13 +1,150 @@
 import os
 from PIL import Image
 from Modules.config import save_config, DEFAULT_CONFIG
-from Modules.utils import strip_quotes, print_section, print_menu_options, confirm_action, parse_dimensions, is_alpha_mask, get_base_name
+from Modules.utils import strip_quotes, print_section, print_menu_options, confirm_action, parse_dimensions, is_alpha_mask, get_base_name, read_image_dimensions
 from Modules.image_gen import generate_alpha_mask, generate_icon
 from Modules.dat_module import read_dat_dimensions, write_dat_dimensions, warn_if_dimension_mismatch
 from Modules.image_conv import convert_image_to_dat
 
+def auto_convert_decal_menu(locator, config):
+    print_section("AUTO CONVERT DECAL")
+    
+    image_path = strip_quotes(input("Enter image file: "))
+    if not os.path.exists(image_path):
+        print(f"\nError: File '{image_path}' not found!\n")
+        return
+    
+    decal_name = input("Enter decal name (eg. TEX_1273719_1273720_DL): ").strip()
+    
+    decal_info = None
+    for img, info in locator.texture_map.items():
+        if info['bundle'] == decal_name or decal_name.lower() in info['base_name'].lower():
+            decal_info = info
+            break
+    
+    if not decal_info:
+        print(f"\nError: Decal '{decal_name}' not found in index.\n")
+        return
+    
+    print(f"\nFound decal: {decal_info['base_name']}")
+    print(f"Bundle: {decal_info['bundle']}")
+    
+    try:
+        img = Image.open(image_path)
+        img_w, img_h = img.size
+        has_alpha = img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info)
+        img.close()
+        
+        print(f"\nImage size: {img_w}x{img_h}")
+        
+        warnings = []
+        if not has_alpha:
+            warnings.append("Image has no transparency - decal will be fully opaque")
+        
+        if warnings:
+            print("\nWARNINGS:")
+            for w in warnings:
+                print(f"  - {w}")
+            
+            if not confirm_action("\nContinue? (y/n): "):
+                print("\nCancelled.\n")
+                return
+        
+        dat_w, dat_h = read_dat_dimensions(decal_info['dat_path'])
+        print(f"\nCurrent decal dimensions: {dat_w}x{dat_h}")
+        
+        need_dimension_change = (img_w, img_h) != (dat_w, dat_h)
+        
+        if need_dimension_change:
+            print(f"Dimension mismatch detected: Image {img_w}x{img_h} != Decal {dat_w}x{dat_h}")
+            
+            if confirm_action("Update decal dimensions to match image? (y/n): "):
+                print(f"\nUpdating decal dimensions to {img_w}x{img_h}")
+                if not write_dat_dimensions(decal_info['dat_path'], img_w, img_h):
+                    print("Warning: Failed to update dimensions")
+            else:
+                print("\nWarning: Dimension mismatch will remain - this may cause issues")
+                if not confirm_action("Continue anyway? (y/n): "):
+                    print("\nCancelled.\n")
+                    return
+        else:
+            print(f"Image dimensions match decal metadata ({img_w}x{img_h})")
+        
+        alpha_mask_path = None
+        alpha_mask_info = None
+        
+        bundle_files = [(img, info) for img, info in locator.texture_map.items() 
+                       if info['bundle'] == decal_info['bundle']]
+        
+        for img_name, info in bundle_files:
+            if is_alpha_mask(info['image_path']):
+                alpha_mask_path = info['image_path']
+                alpha_mask_info = info
+                break
+        
+        if alpha_mask_path and os.path.exists(alpha_mask_path):
+            print(f"\nFound alpha mask: {os.path.basename(alpha_mask_path)}")
+        else:
+            print(f"\nAlpha mask not found automatically in bundle")
+            alpha_input = strip_quotes(input("Enter alpha mask file path (or leave empty to skip): ").strip())
+            
+            if alpha_input and os.path.exists(alpha_input):
+                for img_name, info in locator.texture_map.items():
+                    if os.path.normpath(info['image_path']) == os.path.normpath(alpha_input):
+                        alpha_mask_path = info['image_path']
+                        alpha_mask_info = info
+                        break
+                
+                if not alpha_mask_info:
+                    print("Warning: File not in index, skipping alpha mask")
+                    alpha_mask_path = None
+            else:
+                print("Skipping alpha mask regeneration")
+        
+        if alpha_mask_path and alpha_mask_info:
+            print(f"\nRegenerating alpha mask: {os.path.basename(alpha_mask_path)}")
+            
+            target_size = (img_w, img_h)
+            
+            output_path, _ = generate_alpha_mask(image_path, os.path.dirname(alpha_mask_path), target_size, config['texconv_path'])
+            os.replace(output_path, alpha_mask_path)
+            print("Alpha mask replaced successfully")
+            
+            alpha_curr_w, alpha_curr_h = read_dat_dimensions(alpha_mask_info['dat_path'])
+            if (alpha_curr_w, alpha_curr_h) != (img_w, img_h):
+                print(f"Updating alpha mask metadata: {alpha_curr_w}x{alpha_curr_h} -> {img_w}x{img_h}")
+                write_dat_dimensions(alpha_mask_info['dat_path'], img_w, img_h)
+        
+        print("\nProcessing decal conversion...")
+        
+        main_texture_dat = os.path.join(os.path.dirname(decal_info['dat_path']), f"{decal_info['base_name']}_texture.dat")
+        
+        print(f"\nConverting main texture: {os.path.basename(image_path)} ({img_w}x{img_h})")
+        if not convert_image_to_dat(image_path, main_texture_dat, config['texconv_path']):
+            print("Error: Failed to convert main texture")
+            return
+        
+        if alpha_mask_path and alpha_mask_info and os.path.exists(alpha_mask_path):
+            alpha_dat = os.path.join(os.path.dirname(alpha_mask_info['dat_path']), f"{alpha_mask_info['base_name']}_texture.dat")
+            
+            print(f"\nConverting alpha mask: {os.path.basename(alpha_mask_path)}")
+            if not convert_image_to_dat(alpha_mask_path, alpha_dat, config['texconv_path']):
+                print("Warning: Failed to convert alpha mask")
+        
+        print(f"\n{'=' * 60}")
+        print("AUTO CONVERSION COMPLETE")
+        print(f"{'=' * 60}")
+        print(f"Decal: {decal_info['bundle']}")
+        print(f"Dimensions: {img_w}x{img_h}")
+        print(f"Alpha mask: {'Regenerated' if alpha_mask_path else 'Not found'}")
+        print(f"{'=' * 60}\n")
+        
+    except Exception as e:
+        print(f"\nError during auto conversion: {e}\n")
+        import traceback
+        traceback.print_exc()
+
 def setup_directories_menu(config):
-    """Menu for configuring directory paths"""
     print_section("DIRECTORY SETUP")
     
     print("Current configuration:")
@@ -122,7 +259,6 @@ def alpha_mask_menu(config):
         print(f"\nError generating alpha mask: {e}\n")
 
 def regenerate_alpha_mask_menu(config):
-    """Menu for regenerating a specific alpha mask"""
     print_section("REGENERATE ALPHA MASK")
     
     input_file = strip_quotes(input("Enter Source Image File: "))
@@ -221,7 +357,6 @@ def decal_locator_menu(locator):
             print("\nInvalid choice. Please enter 1-4.\n")
 
 def change_decal_dimensions_menu(locator):
-    """Menu for changing decal dimensions in metadata files"""
     print_section("CHANGE DECAL DIMENSIONS")
     
     if not locator.texture_map:
@@ -316,11 +451,25 @@ def change_decal_dimensions_menu(locator):
         
         files = [(img, info) for img, info in locator.texture_map.items() if info['bundle'] == selected]
         
-        valid_count = sum(1 for _, info in files if os.path.exists(info['dat_path'])
-                         and read_dat_dimensions(info['dat_path']) != (128, 128))
+        icon_files = []
+        valid_files = []
+        
+        for img, info in files:
+            if not os.path.exists(info['dat_path']):
+                continue
+            
+            img_dims = read_image_dimensions(info['image_path'])
+            if img_dims and img_dims == (128, 128):
+                icon_files.append(img)
+            else:
+                valid_files.append((img, info))
         
         print(f"\nBundle: {selected}")
-        print(f"Files to modify: {valid_count} (excluding icon files)\n")
+        print(f"Files to modify: {len(valid_files)}")
+        if icon_files:
+            print(f"Icon files (will be skipped): {len(icon_files)}\n")
+        else:
+            print()
         
         new_size = input("Enter new dimensions (WIDTHxHEIGHT | eg. 2048x2048): ").strip()
         dims = parse_dimensions(new_size)
@@ -338,19 +487,9 @@ def change_decal_dimensions_menu(locator):
         
         changed, skipped, errors = 0, 0, 0
         
-        for image_name, info in files:
-            if not os.path.exists(info['dat_path']):
-                skipped += 1
-                continue
-            
+        for image_name, info in valid_files:
             try:
                 curr_w, curr_h = read_dat_dimensions(info['dat_path'])
-                
-                if curr_w == 128 and curr_h == 128:
-                    print(f"Skipping icon file (128x128): {image_name}")
-                    skipped += 1
-                    continue
-                
                 print(f"Changing {image_name}: {curr_w}x{curr_h} -> {new_w}x{new_h}")
                 
                 if write_dat_dimensions(info['dat_path'], new_w, new_h):
@@ -361,14 +500,16 @@ def change_decal_dimensions_menu(locator):
                 print(f"  Error: {e}")
                 errors += 1
         
+        if icon_files:
+            print(f"\nSkipped {len(icon_files)} icon files (128x128 images)")
+        
         print(f"\n{'=' * 60}\nSUMMARY\n{'=' * 60}")
-        print(f"Files changed: {changed}\nFiles skipped: {skipped}\nErrors: {errors}\n{'=' * 60}\n")
+        print(f"Files changed: {changed}\nErrors: {errors}\n{'=' * 60}\n")
     
     else:
         print("\nInvalid choice.\n")
 
 def convert_images_to_dat_menu(locator, config):
-    """Menu for converting images to DAT files"""
     print_section("CONVERT IMAGES TO DAT")
 
     if not locator.texture_map:
@@ -477,10 +618,101 @@ def convert_images_to_dat_menu(locator, config):
             print("\nCancelled.\n")
             return
 
+        bundles_to_check = {}
+        for image_name, info in images_to_convert:
+            bundle = info['bundle']
+            if bundle not in bundles_to_check:
+                bundles_to_check[bundle] = {'texture': False, 'alpha': False, 'icon': False}
+            
+            img_dims = read_image_dimensions(info['image_path'])
+            if img_dims and img_dims == (128, 128):
+                bundles_to_check[bundle]['icon'] = True
+            elif is_alpha_mask(info['image_path']):
+                bundles_to_check[bundle]['alpha'] = True
+            else:
+                bundles_to_check[bundle]['texture'] = True
+
+        # Check for missing textures
+        missing_texture_bundles = [b for b, files in bundles_to_check.items() 
+                                   if not files['texture'] and (files['alpha'] or files['icon'])]
+
+        if missing_texture_bundles:
+            print(f"\n{'!' * 60}")
+            print("WARNING: Missing main textures detected!")
+            print(f"{'!' * 60}")
+            print(f"\nThe following bundles are missing main decal textures:")
+            for bundle in missing_texture_bundles:
+                print(f"  - {bundle}")
+            
+            print(f"\nAttempting to rebuild index to find missing textures...")
+            
+            # Rebuild index
+            old_count = len(locator.texture_map)
+            locator.build_index()
+            new_count = len(locator.texture_map)
+            
+            print(f"\nIndex rebuilt: {old_count} → {new_count} mappings")
+            
+            # Re-check after rebuild
+            images_to_convert = list(locator.texture_map.items()) if choice == '3' else [
+                (img, info) for img, info in locator.texture_map.items()
+                if info['bundle'] == selected
+            ]
+            
+            bundles_to_check = {}
+            for image_name, info in images_to_convert:
+                bundle = info['bundle']
+                if bundle not in bundles_to_check:
+                    bundles_to_check[bundle] = {'texture': False, 'alpha': False, 'icon': False}
+                
+                img_dims = read_image_dimensions(info['image_path'])
+                if img_dims and img_dims == (128, 128):
+                    bundles_to_check[bundle]['icon'] = True
+                elif is_alpha_mask(info['image_path']):
+                    bundles_to_check[bundle]['alpha'] = True
+                else:
+                    bundles_to_check[bundle]['texture'] = True
+            
+            still_missing = [b for b, files in bundles_to_check.items() 
+                           if not files['texture'] and (files['alpha'] or files['icon'])]
+            
+            if still_missing:
+                print(f"\n{'!' * 60}")
+                print("ERROR: Main textures still missing after rebuild!")
+                print(f"{'!' * 60}")
+                print(f"\nThe following bundles still have missing textures:")
+                for bundle in still_missing:
+                    print(f"  - {bundle}")
+                
+                print(f"\nPossible causes:")
+                print(f"  1. Main texture files don't exist in Images folder")
+                print(f"  2. Main texture files don't have matching .dat files in Raw folder")
+                print(f"  3. Files are named incorrectly")
+                
+                print(f"\nPlease check your Images and Raw folders manually.")
+                print(f"Make sure each bundle has:")
+                print(f"  - Main texture (e.g., 8A_EA_7D_70out.dds) - NOT 128x128")
+                print(f"  - Alpha mask (cyan/blue image)")
+                print(f"  - Icon (128x128 image)")
+                
+                if not confirm_action("\nContinue anyway (will skip missing textures)? (y/n): "):
+                    print("\nCancelled.\n")
+                    return
+            else:
+                print(f"\n✓ All textures found after rebuild!")
+
         converted, skipped, errors = 0, 0, 0
 
         for image_name, info in images_to_convert:
             if not os.path.exists(info['image_path']):
+                print(f"\nSkipping missing file: {image_name}")
+                skipped += 1
+                continue
+
+            # Check if this is an icon (128x128) - skip it
+            img_dims = read_image_dimensions(info['image_path'])
+            if img_dims and img_dims == (128, 128):
+                print(f"\nSkipping icon: {image_name} (128x128)")
                 skipped += 1
                 continue
 
@@ -490,7 +722,6 @@ def convert_images_to_dat_menu(locator, config):
             file_type = "Alpha" if is_alpha_mask(info['image_path']) else "Texture"
             print(f"\nConverting [{file_type}]: {image_name}")
 
-            # Dimension Warning
             warnings = warn_if_dimension_mismatch(
                 info['image_path'],
                 info['dat_path']

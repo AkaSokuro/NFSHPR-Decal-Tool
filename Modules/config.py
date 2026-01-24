@@ -1,7 +1,7 @@
 import os
 import json
 
-VERSION = 5.0
+VERSION = 5.2
 CONFIG_FILE = "decal_tool_config.json"
 
 DEFAULT_CONFIG = {

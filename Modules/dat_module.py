@@ -1,6 +1,34 @@
 import os
 from Modules.utils import read_image_dimensions
 
+def write_dat_format(dat_path, format_str):
+    """Write texture format to a DAT metadata file"""
+    try:
+        with open(dat_path, 'r+b') as f:
+            magic = f.read(13)
+            
+            # Remastered version check
+            if magic in (b'\x00' * 12 + b'\x07', b'\x00' * 12 + b'\x09'):
+                # Remastered - format at 0x2C
+                f.seek(0x2C)
+                if format_str == 'DXT5' or format_str == 'BC3_UNORM':
+                    f.write(b'\x4D')  # DXT5
+                elif format_str == 'DXT1' or format_str == 'BC1_UNORM':
+                    f.write(b'\x47')  # DXT1
+            elif magic[:9] == b'\x00' * 8 + b'\x01':
+                # Original - format at 0xC
+                f.seek(0xC)
+                if format_str == 'DXT5' or format_str == 'BC3_UNORM':
+                    f.write(b'DXT5')
+                elif format_str == 'DXT1' or format_str == 'BC1_UNORM':
+                    f.write(b'DXT1')
+        
+        print(f"       Updated format in metadata DAT to {format_str}")
+        return True
+    except Exception as e:
+        print(f"       Error updating format: {e}")
+        return False
+
 def read_dat_dimensions(dat_path):
     """Read width and height from a DAT metadata file"""
     with open(dat_path, 'rb') as f:
