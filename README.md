@@ -28,6 +28,8 @@ The custom decals can be seen by other players so abide to the game's TOS.
 - Unzip the `nfshpr-decal-tool-scripts.zip` into the installed folder and replace existing files.
 
 ## Features
+### Automation
+- `Auto Convert Decal` - Automatically convert an image into a decal without having to do it manually step by step
 ### Image Generation
 - `Generate Alpha Mask` - Automatically generate an alpha mask from the image (Determine what to render on the decal)
 - `Regenerate Alpha Mask` - Automatically generate an alpha mask from the image replacing the existing alpha mask
