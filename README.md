@@ -29,7 +29,7 @@ The custom decals can be seen by other players so abide to the game's TOS.
 
 ## Features
 ### Supported Image Formats
-> `PNG`, `JPG`, `JPEG`, `TGA`
+> `DDS`, `PNG`, `JPG`, `JPEG`, `TGA`
 ### Automation
 - `Auto Convert Decal` - Automatically convert an image into a decal without having to do it manually step by step
 ### Image Generation
