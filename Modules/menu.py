@@ -16,18 +16,51 @@ def auto_convert_decal_menu(locator, config):
     
     decal_name = input("Enter decal name (eg. TEX_1273719_1273720_DL): ").strip()
     
-    decal_info = None
-    for img, info in locator.texture_map.items():
-        if info['bundle'] == decal_name or decal_name.lower() in info['base_name'].lower():
-            decal_info = info
-            break
+    # Find ALL files in the bundle
+    bundle_files = [(img, info) for img, info in locator.texture_map.items() 
+                   if info['bundle'] == decal_name]
     
-    if not decal_info:
-        print(f"\nError: Decal '{decal_name}' not found in index.\n")
+    if not bundle_files:
+        print(f"\nError: Bundle '{decal_name}' not found in index.\n")
         return
     
-    print(f"\nFound decal: {decal_info['base_name']}")
+    # Separate files by type
+    main_texture_info = None
+    alpha_mask_info = None
+    icon_info = None
+    
+    for img_name, info in bundle_files:
+        img_dims = read_image_dimensions(info['image_path'])
+        
+        # Check if it's an icon (128x128)
+        if img_dims and img_dims == (128, 128):
+            icon_info = (img_name, info)
+        # Check if it's an alpha mask
+        elif is_alpha_mask(info['image_path']):
+            alpha_mask_info = (img_name, info)
+        # Otherwise it's the main texture
+        else:
+            main_texture_info = (img_name, info)
+    
+    # Use the main texture info
+    if not main_texture_info:
+        print(f"\nError: Could not find main texture in bundle '{decal_name}'")
+        print(f"Found files:")
+        for img_name, info in bundle_files:
+            img_dims = read_image_dimensions(info['image_path'])
+            file_type = "Icon (128x128)" if img_dims == (128, 128) else ("Alpha Mask" if is_alpha_mask(info['image_path']) else "Unknown")
+            print(f"  - {img_name} ({file_type})")
+        print()
+        return
+    
+    decal_info = main_texture_info[1]
+    
+    print(f"\nFound main texture: {main_texture_info[0]}")
     print(f"Bundle: {decal_info['bundle']}")
+    if alpha_mask_info:
+        print(f"Alpha mask: {alpha_mask_info[0]}")
+    if icon_info:
+        print(f"Icon: {icon_info[0]}")
     
     try:
         img = Image.open(image_path)
@@ -70,73 +103,85 @@ def auto_convert_decal_menu(locator, config):
         else:
             print(f"Image dimensions match decal metadata ({img_w}x{img_h})")
         
-        alpha_mask_path = None
-        alpha_mask_info = None
-        
-        bundle_files = [(img, info) for img, info in locator.texture_map.items() 
-                       if info['bundle'] == decal_info['bundle']]
-        
-        for img_name, info in bundle_files:
-            if is_alpha_mask(info['image_path']):
-                alpha_mask_path = info['image_path']
-                alpha_mask_info = info
-                break
-        
-        if alpha_mask_path and os.path.exists(alpha_mask_path):
-            print(f"\nFound alpha mask: {os.path.basename(alpha_mask_path)}")
-        else:
-            print(f"\nAlpha mask not found automatically in bundle")
-            alpha_input = strip_quotes(input("Enter alpha mask file path (or leave empty to skip): ").strip())
+        # Handle alpha mask regeneration
+        if alpha_mask_info:
+            alpha_mask_name, alpha_info = alpha_mask_info
+            print(f"\nFound alpha mask: {alpha_mask_name}")
             
-            if alpha_input and os.path.exists(alpha_input):
-                for img_name, info in locator.texture_map.items():
-                    if os.path.normpath(info['image_path']) == os.path.normpath(alpha_input):
-                        alpha_mask_path = info['image_path']
-                        alpha_mask_info = info
-                        break
+            if confirm_action("Regenerate alpha mask from new image? (y/n): "):
+                print(f"\nRegenerating alpha mask...")
                 
-                if not alpha_mask_info:
-                    print("Warning: File not in index, skipping alpha mask")
-                    alpha_mask_path = None
+                target_size = (img_w, img_h)
+                output_path, _ = generate_alpha_mask(
+                    image_path, 
+                    os.path.dirname(alpha_info['image_path']), 
+                    target_size, 
+                    config['texconv_path']
+                )
+                
+                # Replace the old alpha mask
+                os.replace(output_path, alpha_info['image_path'])
+                print("Alpha mask replaced successfully")
+                
+                # Update alpha mask dimensions
+                alpha_curr_w, alpha_curr_h = read_dat_dimensions(alpha_info['dat_path'])
+                if (alpha_curr_w, alpha_curr_h) != (img_w, img_h):
+                    print(f"Updating alpha mask metadata: {alpha_curr_w}x{alpha_curr_h} -> {img_w}x{img_h}")
+                    write_dat_dimensions(alpha_info['dat_path'], img_w, img_h)
             else:
                 print("Skipping alpha mask regeneration")
+                alpha_mask_info = None  # Don't convert it later
+        else:
+            print(f"\nNo alpha mask found in bundle")
+            alpha_mask_info = None
         
-        if alpha_mask_path and alpha_mask_info:
-            print(f"\nRegenerating alpha mask: {os.path.basename(alpha_mask_path)}")
-            
-            target_size = (img_w, img_h)
-            
-            output_path, _ = generate_alpha_mask(image_path, os.path.dirname(alpha_mask_path), target_size, config['texconv_path'])
-            os.replace(output_path, alpha_mask_path)
-            print("Alpha mask replaced successfully")
-            
-            alpha_curr_w, alpha_curr_h = read_dat_dimensions(alpha_mask_info['dat_path'])
-            if (alpha_curr_w, alpha_curr_h) != (img_w, img_h):
-                print(f"Updating alpha mask metadata: {alpha_curr_w}x{alpha_curr_h} -> {img_w}x{img_h}")
-                write_dat_dimensions(alpha_mask_info['dat_path'], img_w, img_h)
+        # Convert main texture
+        print("\n" + "="*60)
+        print("CONVERTING MAIN TEXTURE")
+        print("="*60)
         
-        print("\nProcessing decal conversion...")
+        main_texture_dat = os.path.join(
+            os.path.dirname(decal_info['dat_path']), 
+            f"{decal_info['base_name']}_texture.dat"
+        )
         
-        main_texture_dat = os.path.join(os.path.dirname(decal_info['dat_path']), f"{decal_info['base_name']}_texture.dat")
+        print(f"\nConverting: {os.path.basename(image_path)}")
+        print(f"Target: {main_texture_dat}")
         
-        print(f"\nConverting main texture: {os.path.basename(image_path)} ({img_w}x{img_h})")
         if not convert_image_to_dat(image_path, main_texture_dat, config['texconv_path']):
-            print("Error: Failed to convert main texture")
+            print("\n✗ Error: Failed to convert main texture")
             return
         
-        if alpha_mask_path and alpha_mask_info and os.path.exists(alpha_mask_path):
-            alpha_dat = os.path.join(os.path.dirname(alpha_mask_info['dat_path']), f"{alpha_mask_info['base_name']}_texture.dat")
+        print("\n✓ Main texture converted successfully")
+        
+        # Convert alpha mask if it was regenerated
+        if alpha_mask_info:
+            alpha_mask_name, alpha_info = alpha_mask_info
             
-            print(f"\nConverting alpha mask: {os.path.basename(alpha_mask_path)}")
-            if not convert_image_to_dat(alpha_mask_path, alpha_dat, config['texconv_path']):
-                print("Warning: Failed to convert alpha mask")
+            print("\n" + "="*60)
+            print("CONVERTING ALPHA MASK")
+            print("="*60)
+            
+            alpha_dat = os.path.join(
+                os.path.dirname(alpha_info['dat_path']), 
+                f"{alpha_info['base_name']}_texture.dat"
+            )
+            
+            print(f"\nConverting: {alpha_mask_name}")
+            print(f"Target: {alpha_dat}")
+            
+            if not convert_image_to_dat(alpha_info['image_path'], alpha_dat, config['texconv_path']):
+                print("\n⚠ Warning: Failed to convert alpha mask")
+            else:
+                print("\n✓ Alpha mask converted successfully")
         
         print(f"\n{'=' * 60}")
         print("AUTO CONVERSION COMPLETE")
         print(f"{'=' * 60}")
-        print(f"Decal: {decal_info['bundle']}")
+        print(f"Bundle: {decal_name}")
+        print(f"Main texture: {main_texture_info[0]}")
         print(f"Dimensions: {img_w}x{img_h}")
-        print(f"Alpha mask: {'Regenerated' if alpha_mask_path else 'Not found'}")
+        print(f"Alpha mask: {'Regenerated and converted' if alpha_mask_info else 'Not found'}")
         print(f"{'=' * 60}\n")
         
     except Exception as e:
