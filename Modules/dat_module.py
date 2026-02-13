@@ -15,6 +15,8 @@ def write_dat_format(dat_path, format_str):
                     f.write(b'\x4D')  # DXT5
                 elif format_str == 'DXT1' or format_str == 'BC1_UNORM':
                     f.write(b'\x47')  # DXT1
+                elif format_str == 'BC7' or format_str == 'BC7_UNORM':
+                    f.write(b'\x62')  # BC7
             elif magic[:9] == b'\x00' * 8 + b'\x01':
                 # Original - format at 0xC
                 f.seek(0xC)
