@@ -1,7 +1,7 @@
 import os
 import json
 
-VERSION = 5.2
+VERSION = 5.3
 CONFIG_FILE = "decal_tool_config.json"
 
 DEFAULT_CONFIG = {
@@ -29,4 +29,5 @@ def save_config(config):
     """Save configuration to file"""
     with open(CONFIG_FILE, 'w') as f:
         json.dump(config, f, indent=2)
+
     print(f"\nConfiguration saved to {CONFIG_FILE}\n")
