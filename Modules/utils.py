@@ -44,6 +44,20 @@ def read_image_dimensions(image_path):
     except Exception:
         return None
 
+def is_power_of_2(n):
+    """Check if number is a power of 2"""
+    return n > 0 and (n & (n - 1)) == 0
+
+def next_power_of_2(n):
+    """Get next power of 2 >= n"""
+    import math
+    return 2 ** math.ceil(math.log2(n))
+
+def previous_power_of_2(n):
+    """Get previous power of 2 <= n"""
+    import math
+    return 2 ** math.floor(math.log2(n))
+
 def is_alpha_mask(image_path):
     """Check if an image is an alpha mask by its color content"""
     try:
