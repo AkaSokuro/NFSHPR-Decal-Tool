@@ -103,39 +103,6 @@ def auto_convert_decal_menu(locator, config):
         else:
             print(f"Image dimensions match decal metadata ({img_w}x{img_h})")
         
-        # Handle alpha mask regeneration
-        if alpha_mask_info:
-            alpha_mask_name, alpha_info = alpha_mask_info
-            print(f"\nFound alpha mask: {alpha_mask_name}")
-            
-            if confirm_action("Regenerate alpha mask from new image? (y/n): "):
-                print(f"\nRegenerating alpha mask...")
-                
-                target_size = (img_w, img_h)
-                output_path, _ = generate_alpha_mask(
-                    image_path, 
-                    os.path.dirname(alpha_info['image_path']), 
-                    target_size, 
-                    config['texconv_path']
-                )
-                
-                # Replace the old alpha mask
-                os.replace(output_path, alpha_info['image_path'])
-                print("Alpha mask replaced successfully")
-                
-                # Update alpha mask dimensions
-                alpha_curr_w, alpha_curr_h = read_dat_dimensions(alpha_info['dat_path'])
-                if (alpha_curr_w, alpha_curr_h) != (img_w, img_h):
-                    print(f"Updating alpha mask metadata: {alpha_curr_w}x{alpha_curr_h} -> {img_w}x{img_h}")
-                    write_dat_dimensions(alpha_info['dat_path'], img_w, img_h)
-            else:
-                print("Skipping alpha mask regeneration")
-                alpha_mask_info = None  # Don't convert it later
-        else:
-            print(f"\nNo alpha mask found in bundle")
-            alpha_mask_info = None
-        
-        # Convert main texture
         print("\n" + "="*60)
         print("CONVERTING MAIN TEXTURE")
         print("="*60)
@@ -153,6 +120,40 @@ def auto_convert_decal_menu(locator, config):
             return
         
         print("\n✓ Main texture converted successfully")
+        
+        should_regen_alpha = False
+        if alpha_mask_info:
+            alpha_mask_name, alpha_info = alpha_mask_info
+            print(f"\nFound alpha mask: {alpha_mask_name}")
+            
+            if confirm_action("Regenerate alpha mask from new image? (y/n): "):
+                should_regen_alpha = True
+                print(f"\nRegenerating alpha mask...")
+                
+                final_w, final_h = read_dat_dimensions(decal_info['dat_path'])
+                print(f"Using final main texture dimensions: {final_w}x{final_h}")
+                
+                target_size = (final_w, final_h)
+                output_path, _ = generate_alpha_mask(
+                    image_path, 
+                    os.path.dirname(alpha_info['image_path']), 
+                    target_size, 
+                    config['texconv_path']
+                )
+                
+                # Replace the old alpha mask
+                os.replace(output_path, alpha_info['image_path'])
+                print("Alpha mask replaced successfully")
+                
+                # Update alpha mask dimensions to match main texture
+                write_dat_dimensions(alpha_info['dat_path'], final_w, final_h)
+                print(f"Updated alpha mask metadata to {final_w}x{final_h}")
+            else:
+                print("Skipping alpha mask regeneration")
+                alpha_mask_info = None  # Don't convert it later
+        else:
+            print(f"\nNo alpha mask found in bundle")
+            alpha_mask_info = None
         
         # Convert alpha mask if it was regenerated
         if alpha_mask_info:
@@ -180,8 +181,18 @@ def auto_convert_decal_menu(locator, config):
         print(f"{'=' * 60}")
         print(f"Bundle: {decal_name}")
         print(f"Main texture: {main_texture_info[0]}")
-        print(f"Dimensions: {img_w}x{img_h}")
-        print(f"Alpha mask: {'Regenerated and converted' if alpha_mask_info else 'Not found'}")
+        
+        # Show FINAL dimensions from DAT (after any resizing)
+        final_w, final_h = read_dat_dimensions(decal_info['dat_path'])
+        print(f"Final dimensions: {final_w}x{final_h}")
+        
+        if should_regen_alpha:
+            print(f"Alpha mask: Regenerated at {final_w}x{final_h} and converted")
+        elif alpha_mask_info:
+            print(f"Alpha mask: Converted (not regenerated)")
+        else:
+            print(f"Alpha mask: Not found")
+        
         print(f"{'=' * 60}\n")
         
     except Exception as e:
