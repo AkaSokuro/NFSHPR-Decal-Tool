@@ -30,6 +30,11 @@ The custom decals can be seen by other players so abide to the game's TOS.
 ## Features
 ### Supported Image Formats
 > `DDS`, `PNG`, `JPG`, `JPEG`, `TGA`
+### Limitations
+> Due to the game engine limitation, the decal dimensions need to be power-of-2 (128, 256, 512, 1024, 2048, etc).
+> Or else it might not works properly or outright crashes the game.
+>
+> Though the tool can resize the decal dimension for you so it's kind of a workaround to the limitation.
 ### Automation
 - `Auto Convert Decal` - Automatically convert an image into a decal without having to do it manually step by step
 ### Image Generation
