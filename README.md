@@ -6,6 +6,11 @@
 
 This script is for easing the process of modifying Need For Speed: Hot Pursuit Remastered's decals so custom wraps can be made faster.
 
+> [!IMPORTANT]
+> A [new GUI rework](https://github.com/AkaSokuro/NFSHPR-Decal-Library-Tool) has been released, more stable and more accessible.
+> 
+> With a much less storage requirement, no need to download decal textures separately.
+
 ## Disclaimer
 The custom decals can be seen by other players so abide to the game's TOS.
 
